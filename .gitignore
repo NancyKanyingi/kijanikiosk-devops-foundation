@@ -1,13 +1,24 @@
+# ==========================
 # Terraform
+# ==========================
+**/.terraform/
 *.tfstate
 *.tfstate.*
-.terraform/
-.terraform.lock.hcl
+*.tfplan
 crash.log
 
+# ==========================
+# Local MinIO data
+# ==========================
+**/minio-data/
+
+# ==========================
 # Sensitive files
+# ==========================
 *.pem
 *.key
 
-# OS files
+# ==========================
+# Operating System files
+# ==========================
 .DS_Store
