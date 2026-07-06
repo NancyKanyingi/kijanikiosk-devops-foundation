@@ -1,0 +1,18 @@
+[Unit]
+Description=KijaniKiosk Payments Production Engine
+After=network.target
+
+[Service]
+Type=simple
+User=kk-payments
+Group=kijanikiosk
+ExecStart=/usr/bin/python3 -m http.server 3001
+Restart=on-failure
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=~CAP_SYS_ADMIN CAP_NET_ADMIN
+RestrictNamespaces=true
+MemoryDenyWriteExecute=true

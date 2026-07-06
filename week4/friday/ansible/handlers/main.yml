@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart kk-payments
+  ansible.builtin.systemd:
+    name: kk-payments
+    state: restarted
+    enabled: true

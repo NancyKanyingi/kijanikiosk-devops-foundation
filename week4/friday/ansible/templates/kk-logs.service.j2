@@ -1,0 +1,18 @@
+[Unit]
+Description=KijaniKiosk Log Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=kk-logs
+Group=kijanikiosk
+EnvironmentFile=/opt/kijanikiosk/config/logs.env
+ExecStart=/usr/bin/tail -F /opt/kijanikiosk/shared/logs/app.log
+
+Restart=always
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

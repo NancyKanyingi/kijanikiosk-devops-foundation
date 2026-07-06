@@ -1,0 +1,196 @@
+---
+- name: Configure KijaniKiosk servers
+  hosts: kijanikiosk
+  become: true
+
+  tasks:
+
+    - name: Install common packages
+      ansible.builtin.apt:
+        name: "{{ common_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure kijanikiosk group exists
+      ansible.builtin.group:
+        name: kijanikiosk
+        state: present
+
+    - name: Create service accounts
+      ansible.builtin.user:
+        name: "{{ item }}"
+        group: kijanikiosk
+        shell: /usr/sbin/nologin
+        system: true
+        state: present
+      loop: "{{ service_accounts }}"
+
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: kijanikiosk
+        mode: "2775"
+      loop:
+        - /opt/kijanikiosk/shared/logs
+        - /opt/kijanikiosk/config
+
+    - name: Create payments environment file
+      ansible.builtin.copy:
+        dest: /opt/kijanikiosk/config/payments-api.env
+        content: |
+          PORT=3001
+        owner: kk-payments
+        group: kijanikiosk
+        mode: "0640"
+
+    - name: Create API environment file
+      ansible.builtin.copy:
+        dest: /opt/kijanikiosk/config/api.env
+        content: |
+          PORT=3000
+        owner: kk-api
+        group: kijanikiosk
+        mode: "0640"
+
+    - name: Create logs environment file
+      ansible.builtin.copy:
+        dest: /opt/kijanikiosk/config/logs.env
+        content: |
+          LOG_LEVEL=INFO
+        owner: kk-logs
+        group: kijanikiosk
+        mode: "0640"
+
+    - name: Set ownership on health directory
+      ansible.builtin.file:
+        path: /opt/kijanikiosk/health
+        owner: kk-logs
+        group: kijanikiosk
+        state: directory
+    - name: Set SGID bit on shared logs directory
+      ansible.builtin.file:
+        path: /opt/kijanikiosk/shared/logs
+        mode: "2775"
+
+    - name: Remove existing ACLs from shared logs directory
+      ansible.builtin.command:
+        cmd: setfacl -b /opt/kijanikiosk/shared/logs
+      changed_when: false
+
+    - name: Set default ACL for kijanikiosk group
+      ansible.builtin.command:
+        cmd: setfacl -d -m g:kijanikiosk:rwX /opt/kijanikiosk/shared/logs
+
+    - name: Grant ACL to kk-api
+      ansible.builtin.command:
+        cmd: setfacl -m u:kk-api:rwx /opt/kijanikiosk/shared/logs
+
+    - name: Grant ACL to kk-payments
+      ansible.builtin.command:
+        cmd: setfacl -m u:kk-payments:rwx /opt/kijanikiosk/shared/logs
+    
+    - name: Deploy kk-payments systemd service
+      ansible.builtin.template:
+        src: templates/kk-payments.service.j2
+        dest: /etc/systemd/system/kk-payments.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart kk-payments
+
+    - name: Deploy kk-api systemd service
+      ansible.builtin.template:
+        src: templates/kk-api.service.j2
+        dest: /etc/systemd/system/kk-api.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart kk-api  
+
+    - name: Deploy kk-logs systemd service
+      ansible.builtin.template:
+        src: templates/kk-logs.service.j2
+        dest: /etc/systemd/system/kk-logs.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart kk-logs  
+
+    - name: Install UFW
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+    
+    - name: Reset UFW
+      ansible.builtin.command:
+        cmd: ufw --force reset
+
+    - name: Set default incoming policy
+      ansible.builtin.command:
+        cmd: ufw default deny incoming
+
+    - name: Set default outgoing policy
+      ansible.builtin.command:
+        cmd: ufw default allow outgoing
+
+    - name: Allow loopback access to payments service
+      ansible.builtin.command:
+        cmd: ufw allow in on lo to any port 3001 comment 'Allow nginx proxying to payments service via loopback'
+
+    - name: Deny external access to payments service
+      ansible.builtin.command:
+        cmd: ufw deny proto tcp from any to any port 3001 comment 'Explicitly deny external sources from port 3001'
+
+    - name: Allow SSH from monitoring subnet
+      ansible.builtin.command:
+        cmd: ufw allow from 10.0.1.0/24 to any port 22 proto tcp comment 'Allow SSH from monitoring subnet only'
+
+    - name: Allow HTTP from monitoring subnet
+      ansible.builtin.command:
+        cmd: ufw allow from 10.0.1.0/24 to any port 80 proto tcp comment 'Allow HTTP from monitoring subnet only'
+
+    - name: Enable UFW
+      ansible.builtin.command:
+        cmd: ufw --force enable
+
+    - name: Enable kk-api service
+      ansible.builtin.systemd:
+        name: kk-api
+        enabled: true
+
+    - name: Enable kk-logs service
+      ansible.builtin.systemd:
+        name: kk-logs
+        enabled: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart kk-payments
+      ansible.builtin.systemd:
+        name: kk-payments
+        state: restarted
+        enabled: true
+
+    - name: Restart kk-api
+      ansible.builtin.systemd:
+        name: kk-api
+        state: restarted
+        enabled: true
+
+    - name: Restart kk-logs
+      ansible.builtin.systemd:
+        name: kk-logs
+        state: restarted
+        enabled: true
+    
