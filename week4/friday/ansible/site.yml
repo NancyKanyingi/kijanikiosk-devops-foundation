@@ -149,9 +149,9 @@
       ansible.builtin.command:
         cmd: ufw deny proto tcp from any to any port 3001 comment 'Explicitly deny external sources from port 3001'
 
-    - name: Allow SSH from monitoring subnet
+    - name: Allow SSH for lab access
       ansible.builtin.command:
-        cmd: ufw allow from 10.0.1.0/24 to any port 22 proto tcp comment 'Allow SSH from monitoring subnet only'
+        cmd: ufw allow 22/tcp comment 'Allow SSH for lab access'
 
     - name: Allow HTTP from monitoring subnet
       ansible.builtin.command:
